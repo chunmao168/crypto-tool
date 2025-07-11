@@ -1,0 +1,165 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>前端加密/解密/簽章/驗章工具</title>
+  <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.1.1/crypto-js.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsencrypt@3.2.1/bin/jsencrypt.min.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea, input[type="text"] { width: 100%; margin: 5px 0; }
+    button { margin: 5px; }
+    .section { border: 1px solid #ccc; padding: 10px; margin-top: 15px; }
+  </style>
+</head>
+<body>
+  <h2>🔐 前端加密 / 解密 / 簽章 / 驗章 工具</h2>
+
+  <!-- AES 區塊 -->
+  <div class="section">
+    <h3>1️⃣ AES 加密/解密</h3>
+    <label>AES 金鑰：</label>
+    <input type="text" id="aesKey" placeholder="請輸入 AES 金鑰 (16字元建議)">
+    <label>輸入訊息：</label>
+    <textarea id="aesInput" rows="4"></textarea>
+    <button onclick="encryptAES()">🔐 加密</button>
+    <button onclick="decryptAES()">🔓 解密</button>
+    <label>結果：</label>
+    <textarea id="aesOutput" rows="4" readonly></textarea>
+  </div>
+
+  <!-- 檔案加密 -->
+  <div class="section">
+    <h3>2️⃣ 檔案加密 / 解密（文字檔）</h3>
+    <input type="file" id="fileInput">
+    <button onclick="encryptFile()">🔐 加密檔案</button>
+    <button onclick="decryptFile()">🔓 解密檔案</button>
+    <a id="downloadLink" style="display:none;" download="output.txt">📥 下載結果</a>
+  </div>
+
+  <!-- RSA 簽章區塊 -->
+  <div class="section">
+    <h3>3️⃣ RSA 簽章 / 驗章</h3>
+    <button onclick="generateRSAKeys()">🔑 產生 RSA 金鑰對</button>
+    <button onclick="exportKeys()">📤 匯出金鑰</button>
+    <input type="file" id="importKeyInput">
+    <button onclick="importKey()">📥 匯入金鑰</button>
+    <label>訊息內容：</label>
+    <textarea id="rsaMessage" rows="4"></textarea>
+    <button onclick="signRSA()">🖊 簽章</button>
+    <button onclick="verifyRSA()">✅ 驗章</button>
+    <label>簽章：</label>
+    <textarea id="rsaSignature" rows="4"></textarea>
+  </div>
+
+  <script>
+    let privateKey, publicKey;
+
+    function encryptAES() {
+      const key = document.getElementById('aesKey').value;
+      const text = document.getElementById('aesInput').value;
+      if (!key) return alert('請輸入 AES 金鑰');
+      const ciphertext = CryptoJS.AES.encrypt(text, key).toString();
+      document.getElementById('aesOutput').value = ciphertext;
+    }
+
+    function decryptAES() {
+      const key = document.getElementById('aesKey').value;
+      const ciphertext = document.getElementById('aesInput').value;
+      if (!key) return alert('請輸入 AES 金鑰');
+      try {
+        const bytes = CryptoJS.AES.decrypt(ciphertext, key);
+        const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+        document.getElementById('aesOutput').value = plaintext || '❌ 解密失敗';
+      } catch (e) {
+        document.getElementById('aesOutput').value = '❌ 解密錯誤';
+      }
+    }
+
+    function encryptFile() {
+      const file = document.getElementById('fileInput').files[0];
+      const key = document.getElementById('aesKey').value;
+      if (!file || !key) return alert('請選擇檔案並輸入金鑰');
+      const reader = new FileReader();
+      reader.onload = () => {
+        const encrypted = CryptoJS.AES.encrypt(reader.result, key).toString();
+        downloadText(encrypted, 'encrypted.txt');
+      };
+      reader.readAsText(file);
+    }
+
+    function decryptFile() {
+      const file = document.getElementById('fileInput').files[0];
+      const key = document.getElementById('aesKey').value;
+      if (!file || !key) return alert('請選擇檔案並輸入金鑰');
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const bytes = CryptoJS.AES.decrypt(reader.result, key);
+          const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+          downloadText(decrypted || '解密失敗', 'decrypted.txt');
+        } catch (e) {
+          downloadText('解密錯誤', 'decrypted.txt');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function downloadText(text, filename) {
+      const blob = new Blob([text], { type: 'text/plain' });
+      const link = document.getElementById('downloadLink');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.style.display = 'inline';
+      link.click();
+    }
+
+    function generateRSAKeys() {
+      const crypt = new JSEncrypt({ default_key_size: 2048 });
+      crypt.getKey();
+      privateKey = crypt.getPrivateKey();
+      publicKey = crypt.getPublicKey();
+      alert('RSA 金鑰已產生');
+    }
+
+    function signRSA() {
+      if (!privateKey) return alert('請先產生或匯入私鑰');
+      const text = document.getElementById('rsaMessage').value;
+      const crypt = new JSEncrypt();
+      crypt.setPrivateKey(privateKey);
+      const signature = crypt.sign(text, CryptoJS.SHA256, 'sha256');
+      document.getElementById('rsaSignature').value = signature;
+    }
+
+    function verifyRSA() {
+      if (!publicKey) return alert('請先產生或匯入公鑰');
+      const text = document.getElementById('rsaMessage').value;
+      const sig = document.getElementById('rsaSignature').value;
+      const crypt = new JSEncrypt();
+      crypt.setPublicKey(publicKey);
+      const verified = crypt.verify(text, sig, CryptoJS.SHA256);
+      alert(verified ? '✅ 驗章成功' : '❌ 驗章失敗');
+    }
+
+    function exportKeys() {
+      if (!privateKey || !publicKey) return alert('請先產生金鑰');
+      downloadText(privateKey, 'private.pem');
+      setTimeout(() => downloadText(publicKey, 'public.pem'), 1000);
+    }
+
+    function importKey() {
+      const file = document.getElementById('importKeyInput').files[0];
+      if (!file) return alert('請選擇 PEM 檔案');
+      const reader = new FileReader();
+      reader.onload = () => {
+        const content = reader.result;
+        if (content.includes('PRIVATE KEY')) privateKey = content;
+        if (content.includes('PUBLIC KEY')) publicKey = content;
+        alert('金鑰匯入完成');
+      };
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+</html>
